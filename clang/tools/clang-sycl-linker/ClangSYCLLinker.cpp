@@ -66,6 +66,8 @@ static StringRef OutputFile;
 /// Directory to dump SPIR-V IR if requested by user.
 static SmallString<128> SPIRVDumpDir;
 
+static bool IsAOTCompileNeeded = false;
+
 static void printVersion(raw_ostream &OS) {
   OS << clang::getClangToolFullVersion("clang-sycl-linker") << '\n';
 }
@@ -385,14 +387,22 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVProg);
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple));
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   getSPIRVTransOpts(Args, CmdArgs, Triple);
   StringRef LLVMToSPIRVOptions;
   if (Arg *A = Args.getLastArg(OPT_llvm_spirv_options_EQ))
     LLVMToSPIRVOptions = A->getValue();
   LLVMToSPIRVOptions.split(CmdArgs, " ", /* MaxSplit = */ -1,
                            /* KeepEmpty = */ false);
-  CmdArgs.append({"-o", OutputFile});
+
+  Expected<StringRef> OutFileOrErr =
+      IsAOTCompileNeeded
+          ? createTempFile(Args, sys::path::filename(OutputFile), "spv")
+          : OutputFile;
+  if (!OutFileOrErr)
+    return OutFileOrErr.takeError();
+
+  CmdArgs.append({"-o", *OutFileOrErr});
   CmdArgs.push_back(File);
   if (Error Err = executeCommands(*LLVMToSPIRVProg, CmdArgs))
     return std::move(Err);
@@ -406,7 +416,7 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
           formatv("failed to create dump directory. path: {0}, error_code: {1}",
                   SPIRVDumpDir, EC.value()));
 
-    StringRef Path = OutputFile;
+    StringRef Path = *OutFileOrErr;
     StringRef Filename = llvm::sys::path::filename(Path);
     SmallString<128> CopyPath = SPIRVDumpDir;
     CopyPath.append(Filename);
@@ -419,7 +429,106 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
               Path, CopyPath, EC.value()));
   }
 
+  return *OutFileOrErr;
+}
+
+/// Adds all AOT backend options required for SYCL AOT compilation step to
+/// 'CmdArgs'.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate backend options required to be passed
+/// into the SYCL AOT compilation step.
+/// IsCPU is a bool used to direct option generation. If IsCPU is false, then
+/// options are generated for AOT compilation targeting Intel GPUs.
+static void addBackendOptions(const ArgList &Args,
+                              SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
+  StringRef OptC =
+      Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
+  OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  StringRef OptL =
+      Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
+  OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  StringRef OptTool = (IsCPU) ? Args.getLastArgValue(OPT_cpu_tool_arg_EQ)
+                              : Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
+  OptTool.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  return;
+}
+
+/// Run AOT compilation for Intel CPU.
+/// Calls opencl-aot tool to generate device code for Intel CPU backend.
+/// 'InputFile' is the input SPIR-V file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// SYCL AOT compilation step.
+static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
+                                                 const ArgList &Args) {
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  SmallVector<StringRef, 8> CmdArgs;
+  Expected<std::string> OpenCLAOTPath =
+      findProgram(Args, "opencl-aot", {getMainExecutable("opencl-aot")});
+  if (!OpenCLAOTPath)
+    return OpenCLAOTPath.takeError();
+
+  CmdArgs.push_back(*OpenCLAOTPath);
+  CmdArgs.push_back("--device=cpu");
+  addBackendOptions(Args, CmdArgs, /* IsCPU */ true);
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(OutputFile);
+  CmdArgs.push_back(InputFile);
+  if (Error Err = executeCommands(*OpenCLAOTPath, CmdArgs))
+    return std::move(Err);
   return OutputFile;
+}
+
+/// Run AOT compilation for Intel GPU
+/// Calls ocloc tool to generate device code for Intel GPU backend.
+/// 'InputFile' is the input SPIR-V file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// SYCL AOT compilation step.
+static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
+                                                 const ArgList &Args) {
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  StringRef Arch(Args.getLastArgValue(OPT_arch));
+  SmallVector<StringRef, 8> CmdArgs;
+  Expected<std::string> OclocPath =
+      findProgram(Args, "ocloc", {getMainExecutable("ocloc")});
+  if (!OclocPath)
+    return OclocPath.takeError();
+
+  CmdArgs.push_back(*OclocPath);
+  // The next line prevents ocloc from modifying the image name
+  CmdArgs.push_back("-output_no_suffix");
+  CmdArgs.push_back("-spirv_input");
+  if (!Arch.empty()) {
+    CmdArgs.push_back("-device");
+    CmdArgs.push_back(Arch);
+  }
+  addBackendOptions(Args, CmdArgs, /* IsCPU */ false);
+  CmdArgs.push_back("-output");
+  CmdArgs.push_back(OutputFile);
+  CmdArgs.push_back("-file");
+  CmdArgs.push_back(InputFile);
+  if (Error Err = executeCommands(*OclocPath, CmdArgs))
+    return std::move(Err);
+  return OutputFile;
+}
+
+/// Run AOT compilation for Intel CPU/GPU.
+/// 'InputFile' is the input SPIR-V file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// SYCL AOT compilation step.
+static Expected<StringRef> runAOTCompile(StringRef InputFile,
+                                         const ArgList &Args) {
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  if (Triple.isSPIRAOT()) {
+    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+      return runAOTCompileIntelGPU(InputFile, Args);
+    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+      return runAOTCompileIntelCPU(InputFile, Args);
+  }
+  return createStringError(inconvertibleErrorCode(),
+                           "Unsupported SYCL Triple and Arch");
 }
 
 Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
@@ -437,7 +546,13 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
   // LLVM to SPIR-V translation step
   auto SPVFile = runLLVMToSPIRVTranslation(*DeviceLinkedFile, Args);
   if (!SPVFile)
-    return SPVFile.takeError();
+    reportError(SPVFile.takeError());
+
+  Expected<StringRef> AOTFile =
+      (IsAOTCompileNeeded) ? runAOTCompile(*SPVFile, Args) : *SPVFile;
+  if (!AOTFile)
+    return AOTFile.takeError();
+
   return Error::success();
 }
 
@@ -474,7 +589,12 @@ int main(int argc, char **argv) {
   DryRun = Args.hasArg(OPT_dry_run);
   SaveTemps = Args.hasArg(OPT_save_temps);
 
-  OutputFile = "a.spv";
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  IsAOTCompileNeeded =
+      (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+       Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
+
+  OutputFile = IsAOTCompileNeeded ? "a.out" : "a.spv";
   if (Args.hasArg(OPT_o))
     OutputFile = Args.getLastArgValue(OPT_o);
 
