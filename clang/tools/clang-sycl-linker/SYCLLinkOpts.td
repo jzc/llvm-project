@@ -24,7 +24,7 @@ def device_libs_EQ : CommaJoined<["--", "-"], "device-libs=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"A comma separated list of device libraries that are linked during the device link.">;
 
-def triple : Joined<["--"], "triple">,
+def triple_EQ : Joined<["--"], "triple=">,
   HelpText<"The device target triple">;
 def arch : Separate<["--", "-"], "arch">,
   HelpText<"Specify the name of the target architecture.">;
@@ -50,3 +50,20 @@ def llvm_spirv_path_EQ : Joined<["--"], "llvm-spirv-path=">,
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
+
+def sycl_backend_compile_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-compile-options-from-image=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Compile options that will be transmitted to the SYCL backend compiler">;
+
+def sycl_backend_link_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-link-options-from-image=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Link options that will be transmitted to the SYCL backend compiler">;
+
+def gpu_tool_arg_EQ :
+  Joined<["--", "-"], "gpu-tool-arg=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Options that are passed to the backend of target device compiler for Intel GPU during AOT compilation">;
+def cpu_tool_arg_EQ :
+  Joined<["--", "-"], "cpu-tool-arg=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Options that are passed to the backend of target device compiler for Intel CPU during AOT compilation">;
