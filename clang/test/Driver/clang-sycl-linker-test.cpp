@@ -76,3 +76,8 @@
 // AOT-INTEL-CPU-2:      "{{.*}}llvm-link{{.*}}" {{.*}}.bc {{.*}}.bc -o [[LLVMLINKOUT:.*]].bc --suppress-warnings
 // AOT-INTEL-CPU-2-NEXT: "{{.*}}llvm-spirv{{.*}}" {{.*}}-o [[SPIRVTRANSLATIONOUT:.*]] [[LLVMLINKOUT]].bc
 // AOT-INTEL-CPU-2-NEXT: "{{.*}}opencl-aot{{.*}}" {{.*}}--device=cpu -a -b -c {{.*}}-o a.out [[SPIRVTRANSLATIONOUT]]
+//
+// RUN: not clang-sycl-linker --dry-run --triple=spir64_x86_64 %t_1.bc %t_2.bc 2>& 1 \
+// RUN: | FileCheck %s --check-prefix=NOOUTPUT
+// NOOUTPUT: Output file is not specified
+//

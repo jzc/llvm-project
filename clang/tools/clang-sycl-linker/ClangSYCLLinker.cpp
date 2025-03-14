@@ -461,7 +461,6 @@ static void addBackendOptions(const ArgList &Args,
 /// SYCL AOT compilation step.
 static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
                                                  const ArgList &Args) {
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   SmallVector<StringRef, 8> CmdArgs;
   Expected<std::string> OpenCLAOTPath =
       findProgram(Args, "opencl-aot", {getMainExecutable("opencl-aot")});
@@ -487,8 +486,6 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 /// SYCL AOT compilation step.
 static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
                                                  const ArgList &Args) {
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  StringRef Arch(Args.getLastArgValue(OPT_arch));
   SmallVector<StringRef, 8> CmdArgs;
   Expected<std::string> OclocPath =
       findProgram(Args, "ocloc", {getMainExecutable("ocloc")});
@@ -499,10 +496,12 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
   // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
   CmdArgs.push_back("-spirv_input");
-  if (!Arch.empty()) {
-    CmdArgs.push_back("-device");
-    CmdArgs.push_back(Arch);
-  }
+
+  StringRef Arch(Args.getLastArgValue(OPT_arch));
+  assert(!Arch.empty() && "Arch must be specified for AOT compilation");
+  CmdArgs.push_back("-device");
+  CmdArgs.push_back(Arch);
+
   addBackendOptions(Args, CmdArgs, /* IsCPU */ false);
   CmdArgs.push_back("-output");
   CmdArgs.push_back(OutputFile);
@@ -536,17 +535,17 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
   // First llvm-link step
   auto LinkedFile = linkDeviceInputFiles(Files, Args);
   if (!LinkedFile)
-    reportError(LinkedFile.takeError());
+    return LinkedFile.takeError();
 
   // second llvm-link step
   auto DeviceLinkedFile = linkDeviceLibFiles(*LinkedFile, Args);
   if (!DeviceLinkedFile)
-    reportError(DeviceLinkedFile.takeError());
+    return DeviceLinkedFile.takeError();
 
   // LLVM to SPIR-V translation step
   auto SPVFile = runLLVMToSPIRVTranslation(*DeviceLinkedFile, Args);
   if (!SPVFile)
-    reportError(SPVFile.takeError());
+    return SPVFile.takeError();
 
   Expected<StringRef> AOTFile =
       (IsAOTCompileNeeded) ? runAOTCompile(*SPVFile, Args) : *SPVFile;
@@ -594,9 +593,9 @@ int main(int argc, char **argv) {
       (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
        Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
 
-  OutputFile = IsAOTCompileNeeded ? "a.out" : "a.spv";
-  if (Args.hasArg(OPT_o))
-    OutputFile = Args.getLastArgValue(OPT_o);
+  if (!Args.hasArg(OPT_o))
+    reportError(createStringError("Output file is not specified"));
+  OutputFile = Args.getLastArgValue(OPT_o);
 
   if (Args.hasArg(OPT_spirv_dump_device_code_EQ)) {
     Arg *A = Args.getLastArg(OPT_spirv_dump_device_code_EQ);
