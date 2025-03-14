@@ -319,8 +319,9 @@ static FunctionSummary *calculatePrevailingSummary(
     function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
         IsPrevailing) {
 
-  if (CachedPrevailingSummary.count(VI))
-    return CachedPrevailingSummary[VI];
+  if (auto It = CachedPrevailingSummary.find(VI);
+      It != CachedPrevailingSummary.end())
+    return It->second;
 
   /// At this point, prevailing symbols have been resolved. The following leads
   /// to returning a conservative result:
@@ -405,15 +406,16 @@ static FunctionSummary *calculatePrevailingSummary(
     }
   }
 
+  auto &CPS = CachedPrevailingSummary[VI];
   if (Local) {
     assert(!Prevailing);
-    CachedPrevailingSummary[VI] = Local;
+    CPS = Local;
   } else if (Prevailing) {
     assert(!Local);
-    CachedPrevailingSummary[VI] = Prevailing;
+    CPS = Prevailing;
   }
 
-  return CachedPrevailingSummary[VI];
+  return CPS;
 }
 
 bool llvm::thinLTOPropagateFunctionAttrs(
@@ -651,9 +653,9 @@ struct ArgumentUsesSummary {
   SmallDenseMap<const BasicBlock *, UsesPerBlockInfo, 16> UsesPerBlock;
 };
 
-ArgumentAccessInfo getArgmentAccessInfo(const Instruction *I,
-                                        const ArgumentUse &ArgUse,
-                                        const DataLayout &DL) {
+ArgumentAccessInfo getArgumentAccessInfo(const Instruction *I,
+                                         const ArgumentUse &ArgUse,
+                                         const DataLayout &DL) {
   auto GetTypeAccessRange =
       [&DL](Type *Ty,
             std::optional<int64_t> Offset) -> std::optional<ConstantRange> {
@@ -805,7 +807,7 @@ ArgumentUsesSummary collectArgumentUsesPerBlock(Argument &A, Function &F) {
     }
 
     auto *I = cast<Instruction>(U);
-    bool HasWrite = UpdateUseInfo(I, getArgmentAccessInfo(I, ArgUse, DL));
+    bool HasWrite = UpdateUseInfo(I, getArgumentAccessInfo(I, ArgUse, DL));
 
     Result.HasAnyWrite |= HasWrite;
 
@@ -1249,7 +1251,7 @@ static void addArgumentAttrs(const SCCNodeSet &SCCNodes,
 
     // Functions that are readonly (or readnone) and nounwind and don't return
     // a value can't capture arguments. Don't analyze them.
-    if (F->onlyReadsMemory() && F->doesNotThrow() &&
+    if (F->onlyReadsMemory() && F->doesNotThrow() && F->willReturn() &&
         F->getReturnType()->isVoidTy()) {
       for (Argument &A : F->args()) {
         if (A.getType()->isPointerTy() && !A.hasNoCaptureAttr()) {
@@ -1379,7 +1381,7 @@ static void addArgumentAttrs(const SCCNodeSet &SCCNodes,
     // TODO(captures): Ignore address-only captures.
     if (capturesAnything(CC)) {
       // As the pointer may be captured, determine the pointer attributes
-      // looking at each argument invidivually.
+      // looking at each argument individually.
       for (ArgumentGraphNode *N : ArgumentSCC) {
         if (DetermineAccessAttrsForSingleton(N->Definition))
           Changed.insert(N->Definition->getParent());
@@ -1487,7 +1489,7 @@ static bool isFunctionMallocLike(Function *F, const SCCNodeSet &SCCNodes) {
         return false; // Did not come from an allocation.
       }
 
-    if (PointerMayBeCaptured(RetVal, false, /*StoreCaptures=*/false))
+    if (PointerMayBeCaptured(RetVal, /*ReturnCaptures=*/false))
       return false;
   }
 
