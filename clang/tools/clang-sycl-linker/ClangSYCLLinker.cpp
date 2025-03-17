@@ -14,6 +14,7 @@
 // target-specific device code.
 //===---------------------------------------------------------------------===//
 
+#include "clang/Basic/SYCL.h"
 #include "clang/Basic/Version.h"
 
 #include "llvm/ADT/StringExtras.h"
@@ -50,6 +51,7 @@
 using namespace llvm;
 using namespace llvm::opt;
 using namespace llvm::object;
+using namespace clang;
 
 /// Save intermediary results.
 static bool SaveTemps = false;
@@ -306,72 +308,6 @@ static Expected<StringRef> linkDeviceLibFiles(StringRef InputFile,
   return *OutFileOrErr;
 }
 
-/// Add any llvm-spirv option that relies on a specific Triple in addition
-/// to user supplied options.
-static void getSPIRVTransOpts(const ArgList &Args,
-                              SmallVector<StringRef, 8> &TranslatorArgs,
-                              const llvm::Triple Triple) {
-  // Enable NonSemanticShaderDebugInfo.200 for non-Windows
-  const bool IsWindowsMSVC =
-      Triple.isWindowsMSVCEnvironment() || Args.hasArg(OPT_is_windows_msvc_env);
-  const bool EnableNonSemanticDebug = !IsWindowsMSVC;
-  if (EnableNonSemanticDebug) {
-    TranslatorArgs.push_back(
-        "-spirv-debug-info-version=nonsemantic-shader-200");
-  } else {
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
-    // Prevent crash in the translator if input IR contains DIExpression
-    // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
-    TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
-  }
-  std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
-
-  TranslatorArgs.push_back(Args.MakeArgString(UnknownIntrinsics));
-
-  // Disable all the extensions by default
-  std::string ExtArg("-spirv-ext=-all");
-  std::string DefaultExtArg =
-      ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
-      ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-      ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
-  std::string INTELExtArg =
-      ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
-      ",+SPV_INTEL_device_side_avc_motion_estimation"
-      ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
-      ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
-      ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
-      ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
-      ",+SPV_INTEL_arbitrary_precision_integers"
-      ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
-      ",+SPV_INTEL_fast_composite"
-      ",+SPV_INTEL_arbitrary_precision_fixed_point"
-      ",+SPV_INTEL_arbitrary_precision_floating_point"
-      ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
-      ",+SPV_INTEL_long_constant_composite"
-      ",+SPV_INTEL_arithmetic_fence"
-      ",+SPV_INTEL_global_variable_decorations"
-      ",+SPV_INTEL_cache_controls"
-      ",+SPV_INTEL_fpga_buffer_location"
-      ",+SPV_INTEL_fpga_argument_interfaces"
-      ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-      ",+SPV_INTEL_fpga_latency_control"
-      ",+SPV_INTEL_task_sequence"
-      ",+SPV_KHR_shader_clock"
-      ",+SPV_INTEL_bindless_images";
-  ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-  ExtArg += ",+SPV_INTEL_token_type"
-            ",+SPV_INTEL_bfloat16_conversion"
-            ",+SPV_INTEL_joint_matrix"
-            ",+SPV_INTEL_hw_thread_queries"
-            ",+SPV_KHR_uniform_group_instructions"
-            ",+SPV_INTEL_masked_gather_scatter"
-            ",+SPV_INTEL_tensor_float32_conversion"
-            ",+SPV_INTEL_optnone"
-            ",+SPV_KHR_non_semantic_info"
-            ",+SPV_KHR_cooperative_matrix";
-  TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
-}
-
 /// Run LLVM to SPIR-V translation.
 /// Converts 'File' from LLVM bitcode to SPIR-V format using llvm-spirv tool.
 /// 'Args' encompasses all arguments required for linking device code and will
@@ -387,8 +323,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVProg);
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  getSPIRVTransOpts(Args, CmdArgs, Triple);
   StringRef LLVMToSPIRVOptions;
   if (Arg *A = Args.getLastArg(OPT_llvm_spirv_options_EQ))
     LLVMToSPIRVOptions = A->getValue();
@@ -459,8 +393,7 @@ static void addBackendOptions(const ArgList &Args,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// SYCL AOT compilation step.
-static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
-                                                 const ArgList &Args) {
+static Error runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
   Expected<std::string> OpenCLAOTPath =
       findProgram(Args, "opencl-aot", {getMainExecutable("opencl-aot")});
@@ -475,7 +408,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
   CmdArgs.push_back(InputFile);
   if (Error Err = executeCommands(*OpenCLAOTPath, CmdArgs))
     return std::move(Err);
-  return OutputFile;
+  return Error::success();
 }
 
 /// Run AOT compilation for Intel GPU
@@ -484,8 +417,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// SYCL AOT compilation step.
-static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
-                                                 const ArgList &Args) {
+static Error runAOTCompileIntelGPU(StringRef InputFile, const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
   Expected<std::string> OclocPath =
       findProgram(Args, "ocloc", {getMainExecutable("ocloc")});
@@ -509,7 +441,7 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
   CmdArgs.push_back(InputFile);
   if (Error Err = executeCommands(*OclocPath, CmdArgs))
     return std::move(Err);
-  return OutputFile;
+  return Error::success();
 }
 
 /// Run AOT compilation for Intel CPU/GPU.
@@ -517,17 +449,15 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// SYCL AOT compilation step.
-static Expected<StringRef> runAOTCompile(StringRef InputFile,
-                                         const ArgList &Args) {
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  if (Triple.isSPIRAOT()) {
-    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
-      return runAOTCompileIntelGPU(InputFile, Args);
-    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-      return runAOTCompileIntelCPU(InputFile, Args);
-  }
-  return createStringError(inconvertibleErrorCode(),
-                           "Unsupported SYCL Triple and Arch");
+static Error runAOTCompile(StringRef InputFile, const ArgList &Args) {
+  StringRef Arch = Args.getLastArgValue(OPT_arch);
+  SYCLSupportedIntelArchs OffloadArch = StringToOffloadArchSYCL(Arch);
+  if (IsSYCLSupportedIntelGPUArch(OffloadArch))
+    return runAOTCompileIntelGPU(InputFile, Args);
+  if (IsSYCLSupportedIntelCPUArch(OffloadArch))
+    return runAOTCompileIntelCPU(InputFile, Args);
+
+  return createStringError(inconvertibleErrorCode(), "Unsupported arch");
 }
 
 Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
@@ -547,10 +477,10 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
   if (!SPVFile)
     return SPVFile.takeError();
 
-  Expected<StringRef> AOTFile =
-      (IsAOTCompileNeeded) ? runAOTCompile(*SPVFile, Args) : *SPVFile;
-  if (!AOTFile)
-    return AOTFile.takeError();
+  if (IsAOTCompileNeeded) {
+    if (Error Err = runAOTCompile(*SPVFile, Args))
+      return Err;
+  }
 
   return Error::success();
 }
@@ -588,10 +518,7 @@ int main(int argc, char **argv) {
   DryRun = Args.hasArg(OPT_dry_run);
   SaveTemps = Args.hasArg(OPT_save_temps);
 
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  IsAOTCompileNeeded =
-      (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-       Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
+  IsAOTCompileNeeded = Args.hasArg(OPT_arch);
 
   if (!Args.hasArg(OPT_o))
     reportError(createStringError("Output file is not specified"));

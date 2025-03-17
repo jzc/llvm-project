@@ -24,8 +24,6 @@ def device_libs_EQ : CommaJoined<["--", "-"], "device-libs=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"A comma separated list of device libraries that are linked during the device link.">;
 
-def triple_EQ : Joined<["--"], "triple=">,
-  HelpText<"The device target triple">;
 def arch : Separate<["--", "-"], "arch">,
   HelpText<"Specify the name of the target architecture.">;
 
