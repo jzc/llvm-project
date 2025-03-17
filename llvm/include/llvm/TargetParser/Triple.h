@@ -176,9 +176,6 @@ public:
     DXILSubArch_v1_7,
     DXILSubArch_v1_8,
     LatestDXILSubArch = DXILSubArch_v1_8,
-
-    SPIRSubArch_gen,
-    SPIRSubArch_x86_64,
   };
   enum VendorType {
     UnknownVendor,
