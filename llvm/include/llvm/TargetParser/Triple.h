@@ -869,12 +869,6 @@ public:
     return getArch() == Triple::spir || getArch() == Triple::spir64;
   }
 
-  /// Tests whether the target is SPIR and AOT related.
-  bool isSPIRAOT() const {
-    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_gen ||
-                        getSubArch() == Triple::SPIRSubArch_x86_64);
-  }
-
   /// Tests whether the target is SPIR-V (32/64-bit/Logical).
   bool isSPIRV() const {
     return getArch() == Triple::spirv32 || getArch() == Triple::spirv64 ||
