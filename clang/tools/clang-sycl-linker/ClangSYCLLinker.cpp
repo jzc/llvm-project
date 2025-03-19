@@ -366,27 +366,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   return *OutFileOrErr;
 }
 
-/// Adds all AOT backend options required for SYCL AOT compilation step to
-/// 'CmdArgs'.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate backend options required to be passed
-/// into the SYCL AOT compilation step.
-/// IsCPU is a bool used to direct option generation. If IsCPU is false, then
-/// options are generated for AOT compilation targeting Intel GPUs.
-static void addBackendOptions(const ArgList &Args,
-                              SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
-  StringRef OptC =
-      Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
-  OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  StringRef OptL =
-      Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
-  OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  StringRef OptTool = (IsCPU) ? Args.getLastArgValue(OPT_cpu_tool_arg_EQ)
-                              : Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
-  OptTool.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  return;
-}
-
 /// Run AOT compilation for Intel CPU.
 /// Calls opencl-aot tool to generate device code for Intel CPU backend.
 /// 'InputFile' is the input SPIR-V file.
@@ -402,7 +381,8 @@ static Error runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args) {
 
   CmdArgs.push_back(*OpenCLAOTPath);
   CmdArgs.push_back("--device=cpu");
-  addBackendOptions(Args, CmdArgs, /* IsCPU */ true);
+  StringRef ExtraArgs = Args.getLastArgValue(OPT_opencl_aot_options_EQ);
+  ExtraArgs.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(OutputFile);
   CmdArgs.push_back(InputFile);
@@ -434,7 +414,9 @@ static Error runAOTCompileIntelGPU(StringRef InputFile, const ArgList &Args) {
   CmdArgs.push_back("-device");
   CmdArgs.push_back(Arch);
 
-  addBackendOptions(Args, CmdArgs, /* IsCPU */ false);
+  StringRef ExtraArgs = Args.getLastArgValue(OPT_ocloc_options_EQ);
+  ExtraArgs.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+
   CmdArgs.push_back("-output");
   CmdArgs.push_back(OutputFile);
   CmdArgs.push_back("-file");

@@ -44,13 +44,11 @@
 // AOT-INTEL-GPU-NEXT: "{{.*}}ocloc{{.*}}" {{.*}}-device pvc {{.*}}-output a.out -file [[SPIRVTRANSLATIONOUT]]
 //
 // RUN: clang-sycl-linker --dry-run -arch pvc %t_1.bc %t_2.bc -o a.out 2>&1 \
-// RUN:     --sycl-backend-compile-options-from-image=-a \
-// RUN:     --sycl-backend-link-options-from-image=-b \
-// RUN:     --gpu-tool-arg=-c \
+// RUN:     --ocloc-options="-a -b" \
 // RUN:   | FileCheck %s --check-prefix=AOT-INTEL-GPU-2
 // AOT-INTEL-GPU-2:      "{{.*}}llvm-link{{.*}}" {{.*}}.bc {{.*}}.bc -o [[LLVMLINKOUT:.*]].bc --suppress-warnings
 // AOT-INTEL-GPU-2-NEXT: "{{.*}}llvm-spirv{{.*}}" {{.*}}-o [[SPIRVTRANSLATIONOUT:.*]] [[LLVMLINKOUT]].bc
-// AOT-INTEL-GPU-2-NEXT: "{{.*}}ocloc{{.*}}" {{.*}}-device pvc -a -b -c {{.*}}-output a.out -file [[SPIRVTRANSLATIONOUT]]
+// AOT-INTEL-GPU-2-NEXT: "{{.*}}ocloc{{.*}}" {{.*}}-device pvc -a -b {{.*}}-output a.out -file [[SPIRVTRANSLATIONOUT]]
 //
 // RUN: clang-sycl-linker --dry-run -arch corei7 %t_1.bc %t_2.bc -o a.out 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=AOT-INTEL-CPU
@@ -59,13 +57,11 @@
 // AOT-INTEL-CPU-NEXT: "{{.*}}opencl-aot{{.*}}" {{.*}}--device=cpu {{.*}}-o a.out [[SPIRVTRANSLATIONOUT]]
 //
 // RUN: clang-sycl-linker --dry-run -arch corei7 %t_1.bc %t_2.bc -o a.out 2>&1 \
-// RUN:     --sycl-backend-compile-options-from-image=-a \
-// RUN:     --sycl-backend-link-options-from-image=-b \
-// RUN:     --cpu-tool-arg=-c \
+// RUN:     --opencl-aot-options="-a -b" \
 // RUN:   | FileCheck %s --check-prefix=AOT-INTEL-CPU-2
 // AOT-INTEL-CPU-2:      "{{.*}}llvm-link{{.*}}" {{.*}}.bc {{.*}}.bc -o [[LLVMLINKOUT:.*]].bc --suppress-warnings
 // AOT-INTEL-CPU-2-NEXT: "{{.*}}llvm-spirv{{.*}}" {{.*}}-o [[SPIRVTRANSLATIONOUT:.*]] [[LLVMLINKOUT]].bc
-// AOT-INTEL-CPU-2-NEXT: "{{.*}}opencl-aot{{.*}}" {{.*}}--device=cpu -a -b -c {{.*}}-o a.out [[SPIRVTRANSLATIONOUT]]
+// AOT-INTEL-CPU-2-NEXT: "{{.*}}opencl-aot{{.*}}" {{.*}}--device=cpu -a -b {{.*}}-o a.out [[SPIRVTRANSLATIONOUT]]
 //
 // RUN: not clang-sycl-linker --dry-run %t_1.bc %t_2.bc 2>& 1 \
 // RUN: | FileCheck %s --check-prefix=NOOUTPUT

@@ -49,19 +49,10 @@ def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
 
-def sycl_backend_compile_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-compile-options-from-image=">,
+def ocloc_options_EQ : Joined<["--", "-"], "ocloc-options=">,
   Flags<[LinkerOnlyOption]>,
-  HelpText<"Compile options that will be transmitted to the SYCL backend compiler">;
+  HelpText<"Options passed to ocloc for Intel GPU AOT compilation">;
 
-def sycl_backend_link_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-link-options-from-image=">,
+def opencl_aot_options_EQ : Joined<["--", "-"], "opencl-aot-options=">,
   Flags<[LinkerOnlyOption]>,
-  HelpText<"Link options that will be transmitted to the SYCL backend compiler">;
-
-def gpu_tool_arg_EQ :
-  Joined<["--", "-"], "gpu-tool-arg=">,
-  Flags<[LinkerOnlyOption]>,
-  HelpText<"Options that are passed to the backend of target device compiler for Intel GPU during AOT compilation">;
-def cpu_tool_arg_EQ :
-  Joined<["--", "-"], "cpu-tool-arg=">,
-  Flags<[LinkerOnlyOption]>,
-  HelpText<"Options that are passed to the backend of target device compiler for Intel CPU during AOT compilation">;
+  HelpText<"Options passed to opencl-aot for CPU AOT compilation">;
