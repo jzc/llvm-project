@@ -24,8 +24,6 @@ def device_libs_EQ : CommaJoined<["--", "-"], "device-libs=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"A comma separated list of device libraries that are linked during the device link.">;
 
-def triple : Joined<["--"], "triple">,
-  HelpText<"The device target triple">;
 def arch : Separate<["--", "-"], "arch">,
   HelpText<"Specify the name of the target architecture.">;
 
@@ -50,3 +48,11 @@ def llvm_spirv_path_EQ : Joined<["--"], "llvm-spirv-path=">,
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
+
+def ocloc_options_EQ : Joined<["--", "-"], "ocloc-options=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Options passed to ocloc for Intel GPU AOT compilation">;
+
+def opencl_aot_options_EQ : Joined<["--", "-"], "opencl-aot-options=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Options passed to opencl-aot for CPU AOT compilation">;
