@@ -89,6 +89,8 @@ static const OffloadArchToStringMap arch_names[] = {
     GFX(1200), // gfx1200
     GFX(1201), // gfx1201
     {OffloadArch::AMDGCNSPIRV, "amdgcnspirv", "compute_amdgcn"},
+    // Note: this is an initial list of Intel GPU and GPU offloading architectures.
+    // The list will be expanded later as support for more architectures is added.
     // Intel CPUs
     {OffloadArch::GRANITERAPIDS, "graniterapids", ""},
     // Intel GPUS
