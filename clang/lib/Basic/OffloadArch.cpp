@@ -1,4 +1,4 @@
-#include "clang/Basic/Offloading.h"
+#include "clang/Basic/OffloadArch.h"
 
 #include "llvm/ADT/StringRef.h"
 

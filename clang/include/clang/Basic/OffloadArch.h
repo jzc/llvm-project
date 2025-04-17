@@ -1,4 +1,4 @@
-//===--- Offloading.h - Utilities for offloading ----------------*- C++ -*-===//
+//===--- OffloadArch.h - Definition of offloading architectures --- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_BASIC_OFFLOADING_H
-#define LLVM_CLANG_BASIC_OFFLOADING_H
+#ifndef LLVM_CLANG_BASIC_OFFLOADARCH_H
+#define LLVM_CLANG_BASIC_OFFLOADARCH_H
 
 namespace llvm {
 class StringRef;
@@ -140,4 +140,4 @@ OffloadArch StringToOffloadArch(llvm::StringRef S);
 
 } // namespace clang
 
-#endif // LLVM_CLANG_BASIC_OFFLOADING_H
+#endif // LLVM_CLANG_BASIC_OFFLOADARCH_H

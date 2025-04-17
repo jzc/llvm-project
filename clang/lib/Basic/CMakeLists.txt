@@ -76,7 +76,7 @@ add_clang_library(clangBasic
   MakeSupport.cpp
   Module.cpp
   ObjCRuntime.cpp
-  Offloading.cpp
+  OffloadArch.cpp
   OpenCLOptions.cpp
   OpenMPKinds.cpp
   OperatorPrecedence.cpp

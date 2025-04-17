@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Basic/Offloading.h"
+#include "clang/Basic/OffloadArch.h"
 #include "gtest/gtest.h"
 
 using namespace clang;
 
-TEST(OffloadingArchTest, basic) {
+TEST(OffloadArchTest, basic) {
   EXPECT_TRUE(IsNVIDIAOffloadArch(OffloadArch::SM_20));
   EXPECT_TRUE(IsNVIDIAOffloadArch(OffloadArch::SM_120a));
   EXPECT_FALSE(IsNVIDIAOffloadArch(OffloadArch::GFX600));
