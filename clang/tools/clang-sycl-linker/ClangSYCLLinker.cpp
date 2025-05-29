@@ -388,6 +388,10 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
         return createFileError(File, EC);
     }
 
+    SmallString<0> PropertiesJSON;
+    raw_svector_ostream OS(PropertiesJSON);
+    writePropertiesToJSON(Properties, OS);
+
     OffloadingImage TheImage{};
     TheImage.TheImageKind = IMG_Object;
     TheImage.TheOffloadKind = OFK_SYCL;
@@ -395,7 +399,7 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
         Args.MakeArgString(Args.getLastArgValue(OPT_triple_EQ));
     TheImage.StringData["arch"] =
         Args.MakeArgString(Args.getLastArgValue(OPT_arch_EQ));
-    TheImage.StringData["sycl_properties"] = Properties.writeJSON();
+    TheImage.StringData["properties"] = PropertiesJSON;
     TheImage.Image = std::move(*FileOrErr);
 
     llvm::SmallString<0> Buffer = OffloadBinary::write(TheImage);
