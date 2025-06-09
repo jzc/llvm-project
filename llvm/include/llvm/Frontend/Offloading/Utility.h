@@ -10,9 +10,9 @@
 #define LLVM_FRONTEND_OFFLOADING_UTILITY_H
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <variant>
-#include <map>
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"

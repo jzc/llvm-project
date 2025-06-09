@@ -9,9 +9,8 @@ using namespace llvm;
 void checkEquality(const PropertySetRegistry &PSR1,
                    const PropertySetRegistry &PSR2) {
   ASSERT_EQ(PSR1.size(), PSR2.size());
-  for (auto It1 = PSR1.begin(), It2 = PSR2.begin(),
-            E = PSR1.end();
-       It1 != E; ++It1, ++It2) {
+  for (auto It1 = PSR1.begin(), It2 = PSR2.begin(), E = PSR1.end(); It1 != E;
+       ++It1, ++It2) {
     const auto &[Category1, PropSet1] = *It1;
     const auto &[Category2, PropSet2] = *It2;
     ASSERT_EQ(Category1, Category2);

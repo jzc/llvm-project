@@ -462,25 +462,26 @@ Error offloading::intel::containerizeOpenMPSPIRVImage(
 
 namespace llvm::offloading::sycl {
 
-void writePropertiesToJSON(const PropertySetRegistry &PSRegistry, raw_ostream &Out) {
+void writePropertiesToJSON(const PropertySetRegistry &PSRegistry,
+                           raw_ostream &Out) {
   json::OStream J(Out);
   J.object([&] {
     for (const auto &[CategoryName, PropSet] : PSRegistry) {
       J.attributeObject(CategoryName, [&] {
         for (const auto &[PropName, PropVal] : PropSet) {
           switch (PropVal.index()) {
-            case 0:
-              J.attribute(PropName, std::get<uint32_t>(PropVal));
-              break;
-            case 1:
-              J.attributeArray(PropName, [&] {
-                for (const auto &Byte : std::get<ByteArray>(PropVal)) {
-                  J.value(Byte);
-                }
-              });
-              break;
-            default:
-              llvm_unreachable("unsupported property type");
+          case 0:
+            J.attribute(PropName, std::get<uint32_t>(PropVal));
+            break;
+          case 1:
+            J.attributeArray(PropName, [&] {
+              for (const auto &Byte : std::get<ByteArray>(PropVal)) {
+                J.value(Byte);
+              }
+            });
+            break;
+          default:
+            llvm_unreachable("unsupported property type");
           }
         }
       });
@@ -488,8 +489,7 @@ void writePropertiesToJSON(const PropertySetRegistry &PSRegistry, raw_ostream &O
   });
 }
 
-Expected<PropertySetRegistry>
-readPropertiesFromJSON(MemoryBufferRef Buf) {
+Expected<PropertySetRegistry> readPropertiesFromJSON(MemoryBufferRef Buf) {
   PropertySetRegistry Res;
   Expected<json::Value> V = json::parse(Buf.getBuffer());
   if (!V)
@@ -524,7 +524,8 @@ readPropertiesFromJSON(MemoryBufferRef Buf) {
         return createStringError("unsupported property type");
       }
 
-      auto [It, Inserted] = PropSet.try_emplace(PropName.str(), std::move(Prop));
+      auto [It, Inserted] =
+          PropSet.try_emplace(PropName.str(), std::move(Prop));
       if (!Inserted)
         return createStringError("duplicate property name");
     }
