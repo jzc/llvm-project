@@ -41,41 +41,39 @@ TEST(PropertySetRegistryTest, PropertySetRegistry) {
 }
 
 TEST(PropertySetRegistryTest, IllFormedJSON) {
-  SmallString<0> Serialized;
+  SmallString<0> Input;
 
   // Invalid json
-  Serialized = "{ invalid }";
-  auto PSR = readPropertiesFromJSON({Serialized, ""});
-  ASSERT_TRUE(bool(PSR.takeError()));
+  Input = "{ invalid }";
+  auto Res = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(Res.takeError()));
   
-  Serialized = "";
-  PSR = readPropertiesFromJSON({Serialized, ""});
-  ASSERT_TRUE(bool(PSR.takeError()));
+  Input = "";
+  Res = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(Res.takeError()));
 
   // Not a JSON object
-  Serialized = "[1, 2, 3]";
-  auto PSR = readPropertiesFromJSON({Serialized, ""});
-  if (auto Err = PSR.takeError())
-    FAIL();
-  // ASSERT_TRUE(bool(PSR.takeError()));
+  Input = "[1, 2, 3]";
+  Res = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(Res.takeError()));
 
   // Property set not an object
-  Serialized = R"({ "Category": 42 })";
-  PSR = readPropertiesFromJSON({Serialized, ""});
-  ASSERT_TRUE(bool(PSR.takeError()));
+  Input = R"({ "Category": 42 })";
+  auto PSR = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(PSR.takeError()));
 
   // Property value has non array/non-integer type
-  Serialized = R"({ "Category": { "Prop": "Value" } })";
-  PSR = readPropertiesFromJSON({Serialized, ""});
-  ASSERT_TRUE(bool(PSR.takeError()));
+  Input = R"({ "Category": { "Prop": "Value" } })";
+  PSR = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(PSR.takeError()));
 
   // Property value is an array with non-integer elements
-  Serialized = R"({ "Category": { "Prop": [1, "2", 3] } })";
-  PSR = readPropertiesFromJSON({Serialized, ""});
-  ASSERT_TRUE(bool(PSR.takeError()));
+  Input = R"({ "Category": { "Prop": [1, "2", 3] } })";
+  PSR = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(PSR.takeError()));
 
   // Property value is an array with out-of-range integer elements
-  Serialized = R"({ "Category": { "Prop": [1, 4294967296, 3] } })";
-  PSR = readPropertiesFromJSON({Serialized, ""});
-  ASSERT_TRUE(bool(PSR.takeError()));
+  Input = R"({ "Category": { "Prop": [1, 300, 3] } })";
+  PSR = readPropertiesFromJSON({Input, ""});
+ASSERT_TRUE(errorToBool(PSR.takeError()));
 }

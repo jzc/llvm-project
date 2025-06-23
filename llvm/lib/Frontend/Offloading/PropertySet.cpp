@@ -38,8 +38,8 @@ template <typename... Ts> auto createStringErrorV(Ts &&...Args) {
 Expected<PropertySetRegistry> readPropertiesFromJSON(MemoryBufferRef Buf) {
   PropertySetRegistry Res;
   Expected<json::Value> V = json::parse(Buf.getBuffer());
-  if (!V)
-    return V.takeError();
+  if (auto E = V.takeError())
+    return E;
 
   const json::Object *O = V->getAsObject();
   if (!O)
