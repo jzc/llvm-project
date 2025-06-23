@@ -59,21 +59,21 @@ TEST(PropertySetRegistryTest, IllFormedJSON) {
 
   // Property set not an object
   Input = R"({ "Category": 42 })";
-  auto PSR = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(PSR.takeError()));
+  Res = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(Res.takeError()));
 
   // Property value has non array/non-integer type
   Input = R"({ "Category": { "Prop": "Value" } })";
-  PSR = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(PSR.takeError()));
+  Res = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(Res.takeError()));
 
   // Property value is an array with non-integer elements
   Input = R"({ "Category": { "Prop": [1, "2", 3] } })";
-  PSR = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(PSR.takeError()));
+  Res = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(Res.takeError()));
 
   // Property value is an array with out-of-range integer elements
   Input = R"({ "Category": { "Prop": [1, 300, 3] } })";
-  PSR = readPropertiesFromJSON({Input, ""});
-ASSERT_TRUE(errorToBool(PSR.takeError()));
+  Res = readPropertiesFromJSON({Input, ""});
+  ASSERT_TRUE(errorToBool(Res.takeError()));
 }
