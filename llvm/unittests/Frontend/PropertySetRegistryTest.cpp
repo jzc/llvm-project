@@ -1,9 +1,9 @@
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Frontend/Offloading/Utility.h"
+#include "llvm/Frontend/Offloading/PropertySet.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "gtest/gtest.h"
 
-using namespace llvm::offloading::sycl;
+using namespace llvm::offloading;
 using namespace llvm;
 
 void checkEquality(const PropertySetRegistry &PSR1,
@@ -30,7 +30,7 @@ TEST(PropertySetRegistryTest, PropertySetRegistry) {
   PropertySetRegistry PSR;
   PSR["Category1"]["Prop1"] = 42U;
   PSR["Category1"]["Prop2"] = ByteArray(StringRef("Hello").bytes());
-  PSR["Category2"]["A"] = ByteArray{4, 16, 32};
+  PSR["Category2"]["A"] = ByteArray{0, 4, 16, 32, 255};
   SmallString<0> Serialized;
   raw_svector_ostream OS(Serialized);
   writePropertiesToJSON(PSR, OS);
@@ -38,4 +38,44 @@ TEST(PropertySetRegistryTest, PropertySetRegistry) {
   if (auto Err = PSR2.takeError())
     FAIL();
   checkEquality(PSR, *PSR2);
+}
+
+TEST(PropertySetRegistryTest, IllFormedJSON) {
+  SmallString<0> Serialized;
+
+  // Invalid json
+  Serialized = "{ invalid }";
+  auto PSR = readPropertiesFromJSON({Serialized, ""});
+  ASSERT_TRUE(bool(PSR.takeError()));
+  
+  Serialized = "";
+  PSR = readPropertiesFromJSON({Serialized, ""});
+  ASSERT_TRUE(bool(PSR.takeError()));
+
+  // Not a JSON object
+  Serialized = "[1, 2, 3]";
+  auto PSR = readPropertiesFromJSON({Serialized, ""});
+  if (auto Err = PSR.takeError())
+    FAIL();
+  // ASSERT_TRUE(bool(PSR.takeError()));
+
+  // Property set not an object
+  Serialized = R"({ "Category": 42 })";
+  PSR = readPropertiesFromJSON({Serialized, ""});
+  ASSERT_TRUE(bool(PSR.takeError()));
+
+  // Property value has non array/non-integer type
+  Serialized = R"({ "Category": { "Prop": "Value" } })";
+  PSR = readPropertiesFromJSON({Serialized, ""});
+  ASSERT_TRUE(bool(PSR.takeError()));
+
+  // Property value is an array with non-integer elements
+  Serialized = R"({ "Category": { "Prop": [1, "2", 3] } })";
+  PSR = readPropertiesFromJSON({Serialized, ""});
+  ASSERT_TRUE(bool(PSR.takeError()));
+
+  // Property value is an array with out-of-range integer elements
+  Serialized = R"({ "Category": { "Prop": [1, 4294967296, 3] } })";
+  PSR = readPropertiesFromJSON({Serialized, ""});
+  ASSERT_TRUE(bool(PSR.takeError()));
 }

@@ -31,6 +31,10 @@ void writePropertiesToJSON(const PropertySetRegistry &PSRegistry,
   });
 }
 
+template <typename... Ts> auto createStringErrorV(Ts &&...Args) {
+  return createStringError(formatv(Args...));
+}
+
 Expected<PropertySetRegistry> readPropertiesFromJSON(MemoryBufferRef Buf) {
   PropertySetRegistry Res;
   Expected<json::Value> V = json::parse(Buf.getBuffer());
@@ -39,16 +43,27 @@ Expected<PropertySetRegistry> readPropertiesFromJSON(MemoryBufferRef Buf) {
 
   const json::Object *O = V->getAsObject();
   if (!O)
-    return createStringError("expected JSON object");
+    return createStringErrorV(
+        "error while deserializing property set registry: "
+        "expected JSON object, got {0}",
+        *V);
 
   for (const auto &[CategoryName, Value] : *O) {
     const json::Object *PropSetVal = Value.getAsObject();
     if (!PropSetVal)
-      return createStringError("expected JSON array for properties");
+      return createStringErrorV("error while deserializing property set {0}: "
+                                "expected JSON array, got {1}",
+                                CategoryName.str(), Value);
 
     PropertySet &PropSet = Res[CategoryName.str()];
     for (const auto &[PropName, PropValueVal] : *PropSetVal) {
       PropertyValue Prop;
+      auto PropertyParseError = [&](auto &&...MsgArgs) {
+        return createStringErrorV("error while deserializing property {0} "
+                                  "in property set {1}: {2}",
+                                  PropName.str(), CategoryName.str(),
+                                  formatv(MsgArgs...));
+      };
       if (std::optional<uint64_t> Val = PropValueVal.getAsUINT64()) {
         Prop = PropertyValue(static_cast<uint32_t>(*Val));
       } else if (const json::Array *Val = PropValueVal.getAsArray()) {
@@ -56,20 +71,22 @@ Expected<PropertySetRegistry> readPropertiesFromJSON(MemoryBufferRef Buf) {
         for (const json::Value &V : *Val) {
           std::optional<uint64_t> Byte = V.getAsUINT64();
           if (!Byte)
-            return createStringError("invalid byte array value");
+            return PropertyParseError("expected a uint64, got {0}", V);
           if (*Byte > std::numeric_limits<unsigned char>::max())
-            return createStringError("byte array value out of range");
+            return PropertyParseError(
+                "expected a value between 0 and {0}, got {1}",
+                std::numeric_limits<unsigned char>::max(), *Byte);
           Vec.push_back(static_cast<unsigned char>(*Byte));
         }
         Prop = PropertyValue(std::move(Vec));
       } else {
-        return createStringError("unsupported property type");
+        return PropertyParseError("expected a uint64 or an array, got {0}",
+                                  PropValueVal);
       }
 
       auto [It, Inserted] =
           PropSet.try_emplace(PropName.str(), std::move(Prop));
-      if (!Inserted)
-        return createStringError("duplicate property name");
+      assert(Inserted);
     }
   }
   return Res;
