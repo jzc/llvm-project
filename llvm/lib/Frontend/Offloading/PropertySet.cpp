@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Frontend/Offloading/PropertySet.h"
+#include "llvm/Support/Base64.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBufferRef.h"
 
@@ -25,11 +26,7 @@ void llvm::offloading::writePropertiesToJSON(
             J.attribute(PropName, std::get<uint32_t>(PropVal));
             break;
           case 1:
-            J.attributeArray(PropName, [&] {
-              for (const auto &Byte : std::get<ByteArray>(PropVal)) {
-                J.value(Byte);
-              }
-            });
+            J.attribute(PropName, encodeBase64(std::get<ByteArray>(PropVal)));
             break;
           default:
             llvm_unreachable("unsupported property type");
@@ -50,22 +47,15 @@ readPropertyValueFromJSON(const json::Value &PropValueVal) {
     return PropertyValue(static_cast<uint32_t>(*Val));
   }
 
-  if (const json::Array *Val = PropValueVal.getAsArray()) {
-    SmallVector<unsigned char, 0> Vec;
-    for (const json::Value &V : *Val) {
-      std::optional<uint64_t> Byte = V.getAsUINT64();
-      if (!Byte)
-        return createStringErrorV("expected a uint64, got {0}", V);
-      if (*Byte > std::numeric_limits<unsigned char>::max())
-        return createStringErrorV("expected a value between 0 and {0}, got {1}",
-                                  std::numeric_limits<unsigned char>::max(),
-                                  *Byte);
-      Vec.push_back(static_cast<unsigned char>(*Byte));
-    }
-    return PropertyValue(std::move(Vec));
+  if (std::optional<StringRef> Val = PropValueVal.getAsString()) {
+    std::vector<char> Decoded;
+    if (auto E = decodeBase64(*Val, Decoded))
+      return createStringErrorV("unable to base64 decode the string {0}: {1}",
+                                Val, toString(std::move(E)));
+    return PropertyValue(ByteArray(Decoded.begin(), Decoded.end()));
   }
 
-  return createStringErrorV("expected a uint64 or an array, got {0}",
+  return createStringErrorV("expected a uint64 or a string, got {0}",
                             PropValueVal);
 }
 

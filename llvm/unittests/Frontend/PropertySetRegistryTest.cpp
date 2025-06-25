@@ -64,34 +64,33 @@ TEST(PropertySetRegistryTest, IllFormedJSON) {
   // Invalid json
   Input = "{ invalid }";
   auto Res = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(Res.takeError()));
-  
+  EXPECT_NE("", toString(Res.takeError()));
+
   Input = "";
   Res = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(Res.takeError()));
+  EXPECT_NE("", toString(Res.takeError()));
 
   // Not a JSON object
   Input = "[1, 2, 3]";
   Res = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(Res.takeError()));
+  EXPECT_NE("", toString(Res.takeError()));
 
   // Property set not an object
   Input = R"({ "Category": 42 })";
   Res = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(Res.takeError()));
+  EXPECT_NE("", toString(Res.takeError()));
 
-  // Property value has non array/non-integer type
-  Input = R"({ "Category": { "Prop": "Value" } })";
+  // Property value has non string/non-integer type
+  Input = R"({ "Category": { "Prop": [1, 2, 3] } })";
   Res = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(Res.takeError()));
+  EXPECT_NE("", toString(Res.takeError()));
 
-  // Property value is an array with non-integer elements
-  Input = R"({ "Category": { "Prop": [1, "2", 3] } })";
+  // Property value is an invalid base64 string
+  Input = R"({ "Category": { "Prop": ";" } })";
   Res = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(Res.takeError()));
+  EXPECT_NE("", toString(Res.takeError()));
 
-  // Property value is an array with out-of-range integer elements
-  Input = R"({ "Category": { "Prop": [1, 300, 3] } })";
+  Input = R"({ "Category": { "Prop": "!@#$" } })";
   Res = readPropertiesFromJSON({Input, ""});
-  ASSERT_TRUE(errorToBool(Res.takeError()));
+  EXPECT_NE("", toString(Res.takeError()));
 }
