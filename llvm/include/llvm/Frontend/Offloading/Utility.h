@@ -10,9 +10,7 @@
 #define LLVM_FRONTEND_OFFLOADING_UTILITY_H
 
 #include <cstdint>
-#include <map>
 #include <memory>
-#include <variant>
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -161,18 +159,6 @@ namespace intel {
 /// the Intel runtime offload plugin.
 Error containerizeOpenMPSPIRVImage(std::unique_ptr<MemoryBuffer> &Binary);
 } // namespace intel
-
-namespace sycl {
-
-using ByteArray = SmallVector<unsigned char, 0>;
-using PropertyValue = std::variant<uint32_t, ByteArray>;
-using PropertySet = std::map<std::string, PropertyValue>;
-using PropertySetRegistry = std::map<std::string, PropertySet>;
-
-void writePropertiesToJSON(const PropertySetRegistry &P, raw_ostream &O);
-Expected<PropertySetRegistry> readPropertiesFromJSON(MemoryBufferRef Buf);
-
-} // namespace sycl
 } // namespace offloading
 } // namespace llvm
 

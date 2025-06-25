@@ -1,11 +1,20 @@
+///===- llvm/Frontend/Offloading/PropertySet.cpp --------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "llvm/Frontend/Offloading/PropertySet.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBufferRef.h"
 
-namespace llvm::offloading {
+using namespace llvm;
+using namespace llvm::offloading;
 
-void writePropertiesToJSON(const PropertySetRegistry &PSRegistry,
-                           raw_ostream &Out) {
+void llvm::offloading::writePropertiesToJSON(
+    const PropertySetRegistry &PSRegistry, raw_ostream &Out) {
   json::OStream J(Out);
   J.object([&] {
     for (const auto &[CategoryName, PropSet] : PSRegistry) {
@@ -35,7 +44,33 @@ template <typename... Ts> auto createStringErrorV(Ts &&...Args) {
   return createStringError(formatv(Args...));
 }
 
-Expected<PropertySetRegistry> readPropertiesFromJSON(MemoryBufferRef Buf) {
+Expected<PropertyValue>
+readPropertyValueFromJSON(const json::Value &PropValueVal) {
+  if (std::optional<uint64_t> Val = PropValueVal.getAsUINT64()) {
+    return PropertyValue(static_cast<uint32_t>(*Val));
+  }
+
+  if (const json::Array *Val = PropValueVal.getAsArray()) {
+    SmallVector<unsigned char, 0> Vec;
+    for (const json::Value &V : *Val) {
+      std::optional<uint64_t> Byte = V.getAsUINT64();
+      if (!Byte)
+        return createStringErrorV("expected a uint64, got {0}", V);
+      if (*Byte > std::numeric_limits<unsigned char>::max())
+        return createStringErrorV("expected a value between 0 and {0}, got {1}",
+                                  std::numeric_limits<unsigned char>::max(),
+                                  *Byte);
+      Vec.push_back(static_cast<unsigned char>(*Byte));
+    }
+    return PropertyValue(std::move(Vec));
+  }
+
+  return createStringErrorV("expected a uint64 or an array, got {0}",
+                            PropValueVal);
+}
+
+Expected<PropertySetRegistry>
+llvm::offloading::readPropertiesFromJSON(MemoryBufferRef Buf) {
   PropertySetRegistry Res;
   Expected<json::Value> V = json::parse(Buf.getBuffer());
   if (auto E = V.takeError())
@@ -57,39 +92,16 @@ Expected<PropertySetRegistry> readPropertiesFromJSON(MemoryBufferRef Buf) {
 
     PropertySet &PropSet = Res[CategoryName.str()];
     for (const auto &[PropName, PropValueVal] : *PropSetVal) {
-      PropertyValue Prop;
-      auto PropertyParseError = [&](auto &&...MsgArgs) {
-        return createStringErrorV("error while deserializing property {0} "
-                                  "in property set {1}: {2}",
-                                  PropName.str(), CategoryName.str(),
-                                  formatv(MsgArgs...));
-      };
-      if (std::optional<uint64_t> Val = PropValueVal.getAsUINT64()) {
-        Prop = PropertyValue(static_cast<uint32_t>(*Val));
-      } else if (const json::Array *Val = PropValueVal.getAsArray()) {
-        SmallVector<unsigned char, 0> Vec;
-        for (const json::Value &V : *Val) {
-          std::optional<uint64_t> Byte = V.getAsUINT64();
-          if (!Byte)
-            return PropertyParseError("expected a uint64, got {0}", V);
-          if (*Byte > std::numeric_limits<unsigned char>::max())
-            return PropertyParseError(
-                "expected a value between 0 and {0}, got {1}",
-                std::numeric_limits<unsigned char>::max(), *Byte);
-          Vec.push_back(static_cast<unsigned char>(*Byte));
-        }
-        Prop = PropertyValue(std::move(Vec));
-      } else {
-        return PropertyParseError("expected a uint64 or an array, got {0}",
-                                  PropValueVal);
-      }
+      Expected<PropertyValue> Prop = readPropertyValueFromJSON(PropValueVal);
+      if (auto E = Prop.takeError())
+        return createStringErrorV(
+            "error while deserializing property {0} in property set {1}: {2}",
+            PropName.str(), CategoryName.str(), toString(std::move(E)));
 
       auto [It, Inserted] =
-          PropSet.try_emplace(PropName.str(), std::move(Prop));
-      assert(Inserted);
+          PropSet.try_emplace(PropName.str(), std::move(*Prop));
+      assert(Inserted && "Property already exists in PropertySet");
     }
   }
   return Res;
 }
-
-} // namespace llvm::offloading
