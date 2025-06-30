@@ -4,7 +4,11 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+///===---------------------------------------------------------------------===//
+/// \file This file defines PropertySetRegistry and PropertyValue types and
+/// provides helper functions to translate PropertySetRegistry from/to JSON.
 //===----------------------------------------------------------------------===//
+
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
 

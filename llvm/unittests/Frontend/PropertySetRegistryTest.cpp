@@ -14,33 +14,13 @@
 using namespace llvm::offloading;
 using namespace llvm;
 
-void checkEquality(const PropertySetRegistry &PSR1,
-                   const PropertySetRegistry &PSR2) {
-  EXPECT_EQ(PSR1.size(), PSR2.size());
-  for (auto It1 = PSR1.begin(), It2 = PSR2.begin(), E = PSR1.end(); It1 != E;
-       ++It1, ++It2) {
-    const auto &[Category1, PropSet1] = *It1;
-    const auto &[Category2, PropSet2] = *It2;
-    EXPECT_EQ(Category1, Category2);
-    EXPECT_EQ(PropSet1.size(), PropSet2.size());
-    for (auto It1 = PropSet1.begin(), It2 = PropSet2.begin(),
-              E = PropSet1.end();
-         It1 != E; ++It1, ++It2) {
-      const auto &[PropName1, PropValue1] = *It1;
-      const auto &[PropName2, PropValue2] = *It2;
-      EXPECT_EQ(PropName1, PropName2);
-      EXPECT_EQ(PropValue1, PropValue2);
-    }
-  }
-}
-
 void checkSerialization(const PropertySetRegistry &PSR) {
   SmallString<0> Serialized;
   raw_svector_ostream OS(Serialized);
   writePropertiesToJSON(PSR, OS);
   auto PSR2 = readPropertiesFromJSON({Serialized, ""});
   ASSERT_EQ("", toString(PSR2.takeError()));
-  checkEquality(PSR, *PSR2);
+  EXPECT_EQ(PSR, *PSR2);
 }
 
 TEST(PropertySetRegistryTest, PropertySetRegistry) {
