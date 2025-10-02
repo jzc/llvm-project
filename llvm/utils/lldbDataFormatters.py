@@ -360,6 +360,7 @@ class DenseMapSynthetic:
 
         buckets = self.valobj.GetChildMemberWithName("Buckets")
         num_buckets = self.valobj.GetChildMemberWithName("NumBuckets").unsigned
+        num_tombstones = self.valobj.GetChildMemberWithName("NumTombstones").unsigned
 
         # Bucket entries contain one of the following:
         #   1. Valid key-value
@@ -373,17 +374,35 @@ class DenseMapSynthetic:
         # For each key, collect a list of buckets it appears in.
         key_buckets: dict[str, list[int]] = collections.defaultdict(list)
         for index in range(num_buckets):
-            bucket = buckets.GetValueForExpressionPath(f"[{index}]")
-            key = bucket.GetChildAtIndex(0)
+            key = buckets.GetValueForExpressionPath(f"[{index}].first")
             key_buckets[str(key.data)].append(index)
+
+        # Special case: When there's exactly one tombstone, it appears as a unique
+        # key and our heuristic would incorrectly include it as a valid entry.
+        # Try to identify and exclude the tombstone key.
+        tombstone_key_str = None
+        if num_tombstones == 1:
+            try:
+                # Attempt to get the tombstone key value from the DenseMap
+                tombstone_key = self.valobj.CreateValueFromExpression(
+                    "tombstone_key", f"{get_expression_path(self.valobj)}.getTombstoneKey()"
+                )
+                if tombstone_key.IsValid():
+                    tombstone_key_str = str(tombstone_key.data)
+            except:
+                # If we can't get the tombstone key, fall back to the original heuristic
+                pass
 
         # Heuristic: This is not a multi-map, any repeated (non-unique) keys are
         # either the the empty key or the tombstone key. Populate child_buckets
         # with the indexes of entries containing unique keys.
-        for indexes in key_buckets.values():
-            if len(indexes) == 1:
-                self.child_buckets.append(indexes[0])
-
+        for key_str, indexes in key_buckets.items():
+            if len(indexes) != 1:
+                continue
+            # Skip the tombstone key if we identified it
+            if tombstone_key_str is not None and key_str == tombstone_key_str:
+                continue
+            self.child_buckets.append(indexes[0])
 
 class DenseSetSynthetic:
     valobj: lldb.SBValue
